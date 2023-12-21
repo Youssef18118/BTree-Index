@@ -70,6 +70,9 @@ class B_Index {
             file.close();
 
         }
+        void skipLine(ifstream& file) {
+            file.ignore(numeric_limits<streamsize>::max(), '\n');
+        }
 
         int SearchARecord (char* filename, int RecordID){
             ifstream file(filename);
@@ -78,19 +81,21 @@ class B_Index {
             int key_counter = 1;
 
             // ignore first line
-            file.ignore(numeric_limits<streamsize>::max(), '\n');
+            skipLine(file);
 
             begin:
             string leaf_indicator, key, index;
             getline(file, leaf_indicator, ' ');  // Storing the leaf indicator 
 
-            start:
+            root_next:
             getline(file, key, ' '); // Storing the key  
             getline(file, index, ' '); // Storing the index 
 
 
             // if next key is -1 (empty) or key counter is bigger than order of the node
             if (stoi(key) == -1 || key_counter > order){
+                // cout << "key_counter " << key_counter << endl;
+                // cout << stoi(key) << endl;
                 cout << "Record not found" << endl;
                 return -1;
             } 
@@ -100,61 +105,97 @@ class B_Index {
                             
                     if(stoi(leaf_indicator) == 0){  // checking if the Record is leaf Node using leaf indicator 
                         return stoi(index);
-                    }else{    // if Record is not leaf Node
-                        target = stoi(index); // String Index
-                        if(target > no_records){ // index is bigger than number of records (intitialized with bigger number) return index
-                            return target;
-                        }
-                        file.ignore(numeric_limits<streamsize>::max(), '\n'); // ignoring the rest of record
+                    }else{  // if Record is not leaf Node
+                        target = stoi(index); // Storing Index
+                        skipLine(file);
                         record++;
                         cout << "Record equality: " << record << endl;
                     }
                         
                 }else{ // if RecordID is less than key
                     target = stoi(index); // String Index
-                    if(target > no_records){ // index is bigger than number of records, return -1
-                        cout << "Record not found" << endl;
-                        return -1;
-                    }
-                    file.ignore(numeric_limits<streamsize>::max(), '\n'); // ignoring the rest of record
+                    skipLine(file);
                     record++;
                     cout << "Record less than: " << record << endl;
                 }
             }else{ // if RecordID is greater than key
                 key_counter++; // increment key counter
-                goto start; // begin reading next key and index
+                goto root_next; // begin reading next key and index
             }
 
             // Looping till reaching the last record
             while(record < target){
                 // till reaching specified record
-                file.ignore(numeric_limits<streamsize>::max(), '\n'); // ignoring the rest of record
+                skipLine(file);
                 record++;
                 cout << "Record while: " << record << endl;
             }
             
-            // now we are in the last record
+            // check if this is last record
+            last:
             getline(file, leaf_indicator, ' ');
 
-            // if we are not in the leaf node go back to begining to check earlier cases
+            // if we are in a middle record (not leaf)
             if(stoi(leaf_indicator) == 1){ 
-                goto begin;
+                // cout << "leaf_indicator: " << leaf_indicator << endl;
+                // cout << "last record key: " << key << endl;
+                // cout << "last record key: " << index << endl;
+
+                key_counter = 1;
+                
+                middle_record_next:
+
+                getline(file, key, ' ');
+                getline(file, index, ' ');
+                
+                if (stoi(key) == -1 || key_counter > order){
+                    // cout << "key " << stoi(key) << endl;
+                    // cout << "key_counter " << key_counter << endl;
+                    cout << "Record not found" << endl;
+                    return -1;
+                }
+                else if(RecordID <= stoi(key) ){    // if RecordID is less or equal to key     
+                    target = stoi(index);
+                    file.seekg(0, ios::beg); // go back to beginning of file
+                        
+                    skipLine(file); // skip first record
+                    record = 1;
+
+                    while(record < target){ //  looping till reaching specified record
+                        skipLine(file);
+                        record++;
+                        cout << "Record while: " << record << endl;
+                    }
+                    
+                    goto last;
+              
+                }else{ // Recod id is bigger than current key so look at next key
+                    key_counter++;
+                    goto middle_record_next;
+                }
+                                
             }
             
-            last:
+            // we are in last record
             key_counter = 1;
 
+            last_record_next:
             getline(file, key, ' ');
             getline(file, index, ' ');
+            // cout << "key " << stoi(key) << endl;
+            // cout << "index " << stoi(index) << endl;
 
-            if(stoi(key) == RecordID){
-                return stoi(index);
-            }else if (RecordID < stoi(key)){ // Record id is less than a key in last record so it is not found
+            if (stoi(key) == -1 || key_counter > order || RecordID < stoi(key)){
+                // cout << "key " << stoi(key) << endl;
+                // cout << "key_counter " << key_counter << endl;
                 cout << "Record not found" << endl;
                 return -1;
+            }
+            else if(stoi(key) == RecordID){ // we are in the last record so we are sure this is reference we want 
+                return stoi(index);
             }else{ // Recod id is bigger than current key so look at next key
                 key_counter++;
-                goto last;
+                goto last_record_next;
             }
 
         }
@@ -173,7 +214,7 @@ int main() {
 
     b_index.DisplayIndexFileContent(filename);
     // cout << endl;
-    cout << b_index.SearchARecord(filename, 24) << endl;
+    cout << b_index.SearchARecord(filename, 7) << endl;
 
     cout << "B-tree index file created successfully." << endl;
 
